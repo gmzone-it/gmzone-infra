@@ -1,0 +1,23 @@
+---
+# Portainer CE - Docker management UI
+# - 9443 (HTTPS UI): bound to LAN IP only - NEVER expose to internet
+# - mounts docker.sock to manage local docker engine
+# SECURITY: docker.sock access is root-equivalent on the host.
+
+services:
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    restart: unless-stopped
+    ports:
+      - "192.168.40.40:9443:9443"       # admin UI - LAN ONLY
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./data:/data
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true
+    name: proxy
