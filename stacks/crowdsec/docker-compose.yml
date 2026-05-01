@@ -1,0 +1,35 @@
+---
+# Crowdsec engine
+# - reads logs from NPM (and host syslog) via bind mounts
+# - exposes Local API on 127.0.0.1:8080 for the host bouncer
+# - subscribes to the community blocklist (free, opt-in)
+#
+# The firewall bouncer that ENFORCES decisions is installed natively on the host
+# (apt package crowdsec-firewall-bouncer-iptables, from the official Crowdsec
+# packagecloud repo) — see _bootstrap/05_install_crowdsec.sh.
+
+services:
+  crowdsec:
+    image: crowdsecurity/crowdsec:latest
+    container_name: crowdsec
+    restart: unless-stopped
+    environment:
+      - GID=1000
+      - COLLECTIONS=crowdsecurity/nginx crowdsecurity/http-cve crowdsecurity/linux crowdsecurity/sshd crowdsecurity/base-http-scenarios crowdsecurity/whitelist-good-actors
+      - DISABLE_ONLINE_API=false
+    ports:
+      # Local API exposed ONLY on host loopback - never reachable from outside
+      - "127.0.0.1:8080:8080"
+    volumes:
+      # Persistent state (decisions DB, learned data, machine identity)
+      - ./data:/var/lib/crowdsec/data
+      - ./config:/etc/crowdsec
+      # NPM access/error logs (read-only) - this is the primary log source
+      - /opt/gmzone/npm/data/logs:/var/log/nginx-proxy-manager:ro
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true
+    name: proxy

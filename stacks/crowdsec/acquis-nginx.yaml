@@ -1,0 +1,11 @@
+---
+# Tell crowdsec which logs to ingest and how to label them
+# 'type: nginx' triggers the crowdsecurity/nginx parser
+# Multiple proxy-host-N_access.log files cover all NPM-managed virtual hosts
+
+filenames:
+  - /var/log/nginx-proxy-manager/proxy-host-*_access.log
+  - /var/log/nginx-proxy-manager/proxy-host-*_error.log
+  - /var/log/nginx-proxy-manager/fallback_*.log
+labels:
+  type: nginx
