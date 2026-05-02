@@ -3,7 +3,7 @@
 #
 # This repo holds:
 #   - bootstrap shell scripts under _bootstrap/  (no package manager → not watched)
-#   - four docker-compose stacks under stacks/   (Docker images → WATCHED)
+#   - five docker-compose stacks under stacks/   (Docker images → WATCHED)
 #
 # Strategy mirrors gmzone-app-template:
 #   - Weekly schedule (Monday 06:00 Europe/Rome)
@@ -74,4 +74,19 @@ updates:
       - "stack:demo-hello"
     commit-message:
       prefix: "chore(demo-hello)"
+      include: "scope"
+
+  - package-ecosystem: "docker-compose"
+    directory: "/stacks/uptime-kuma"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Rome"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "stack:uptime-kuma"
+    commit-message:
+      prefix: "chore(uptime-kuma)"
       include: "scope"
