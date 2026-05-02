@@ -1,0 +1,97 @@
+---
+# Crowdsec live test — manually-triggered workflow that hits gmzone.it
+# from a GitHub-hosted runner with scanner-like paths (.env, /wp-admin,
+# /.git/config, ...) so the Crowdsec engine on the home server should
+# detect the pattern and ban the runner's egress IP.
+#
+# Why a GitHub Actions runner and not curl from your laptop?
+# Because your laptop and the home server share the same WAN egress IP
+# (TIM/UCG NAT). If Crowdsec banned that IP, your own browser would
+# stop working until the ban expires. The GitHub runner is a different
+# IP, completely throw-away.
+#
+# Trigger: workflow_dispatch ONLY (never auto-runs).
+# Duration of effect: a few minutes (the ban auto-expires per the
+# default profile, which is 4h — but you can manually 'cscli decisions
+# delete' on the server right after the test if you want).
+#
+# What success looks like:
+#   1. The workflow finishes (with errors on the curls, that's the point)
+#   2. Telegram message arrives ~10s later: "🚨 gmzone — Crowdsec ... IP X.Y.Z.W banned"
+#   3. cscli decisions list on the server shows the runner IP
+
+name: crowdsec-live-test
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Target to probe (default: gmzone.it)'
+        required: false
+        default: 'gmzone.it'
+      requests_per_path:
+        description: 'How many times to hit each path (per second)'
+        required: false
+        default: '5'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: Scanner-like probe
+    runs-on: ubuntu-latest
+    steps:
+      - name: Show our egress IP (for cross-check)
+        run: |
+          echo "Runner egress IP: $(curl -s https://api.ipify.org)"
+          echo "(this is what should appear in cscli decisions list)"
+
+      - name: Hit scanner-like paths
+        env:
+          TARGET: ${{ inputs.target }}
+          N: ${{ inputs.requests_per_path }}
+        run: |
+          # Paths that match crowdsecurity/base-http-scenarios and
+          # crowdsecurity/http-cve scenarios.
+          paths=(
+            '/.env'
+            '/.git/config'
+            '/.git/HEAD'
+            '/wp-admin/'
+            '/wp-login.php'
+            '/wp-content/plugins/'
+            '/admin.php'
+            '/phpmyadmin/'
+            '/.aws/credentials'
+            '/.ssh/id_rsa'
+            '/server-status'
+            '/.well-known/security.txt'
+            '/cgi-bin/'
+            '/console/'
+            '/manager/html'
+            '/api/v1/users'
+          )
+
+          total=0
+          for path in "${paths[@]}"; do
+            for i in $(seq 1 "$N"); do
+              code=$(curl -s -o /dev/null -w "%{http_code}" \
+                -A "Mozilla/5.0 (compatible; LiveTestScanner/1.0)" \
+                --max-time 5 \
+                "https://${TARGET}${path}" || echo "000")
+              echo "${code}  ${path}  (#${i})"
+              total=$((total+1))
+              # don't sleep — we WANT the burst to look scanner-like
+            done
+          done
+          echo ""
+          echo "Total requests sent: ${total}"
+
+      - name: Verify if we got banned
+        run: |
+          # After the burst, a normal request should now fail (connection
+          # reset / timeout) if Crowdsec banned our IP at the iptables level.
+          sleep 15
+          echo "Final probe (should fail or hang briefly if banned):"
+          curl -sI -m 8 "https://${{ inputs.target }}/" || echo "(ban detected: curl failed)"
