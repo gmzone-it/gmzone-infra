@@ -1,0 +1,55 @@
+---
+# Uptime Kuma — multi-protocol monitoring with built-in alerting
+#
+# What it monitors:
+#   - HTTP/HTTPS (status, response time, cert expiry)
+#   - TCP ports
+#   - ICMP ping (requires NET_RAW cap)
+#   - DNS records
+#   - Docker container health
+#   - Steam game server, MQTT, gRPC, Postgres, Redis, ...
+#
+# What it sends alerts to:
+#   - Telegram (we wire this up via UI after first login)
+#   - Email, Discord, Slack, ntfy, generic webhook, ...
+#
+# Access:
+#   - NO host port mapping → reachable ONLY via NPM through the 'proxy' network
+#   - After deploy, configure NPM Proxy Host:
+#       uptime.gmzone.it  →  http://uptime-kuma:3001
+#       (Force SSL, HTTP/2, Block Common Exploits, HSTS)
+
+services:
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    container_name: uptime-kuma
+    restart: unless-stopped
+    networks:
+      - proxy
+    volumes:
+      # Persistent state: SQLite DB, monitor configs, screenshots, ...
+      - ./data:/app/data
+    # Hardening (less aggressive than static services because uptime-kuma
+    # writes DB and does outbound network probes):
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_RAW          # required for ICMP ping monitors
+      - NET_BIND_SERVICE # required so Node.js can bind 3001 cleanly
+      - SETGID
+      - SETUID
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    cpus: 1.0
+    healthcheck:
+      test: ["CMD", "extra/healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+networks:
+  proxy:
+    external: true
+    name: proxy
