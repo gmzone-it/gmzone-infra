@@ -1,0 +1,77 @@
+---
+# Dependabot config for gmzone-infra
+#
+# This repo holds:
+#   - bootstrap shell scripts under _bootstrap/  (no package manager → not watched)
+#   - four docker-compose stacks under stacks/   (Docker images → WATCHED)
+#
+# Strategy mirrors gmzone-app-template:
+#   - Weekly schedule (Monday 06:00 Europe/Rome)
+#   - Per-stack tracking: each compose file is its own ecosystem entry,
+#     so updates land in scoped PRs ("npm stack image bump", not a 4-stack
+#     mega-PR that would require coordinated review).
+#   - Conventional-commit prefix for clean squash history.
+
+version: 2
+updates:
+
+  # ----- Stacks (one entry per compose file) ------------------------------
+  - package-ecosystem: "docker-compose"
+    directory: "/stacks/npm"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Rome"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "stack:npm"
+    commit-message:
+      prefix: "chore(npm)"
+      include: "scope"
+
+  - package-ecosystem: "docker-compose"
+    directory: "/stacks/portainer"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Rome"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "stack:portainer"
+    commit-message:
+      prefix: "chore(portainer)"
+      include: "scope"
+
+  - package-ecosystem: "docker-compose"
+    directory: "/stacks/crowdsec"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Rome"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "stack:crowdsec"
+    commit-message:
+      prefix: "chore(crowdsec)"
+      include: "scope"
+
+  - package-ecosystem: "docker-compose"
+    directory: "/stacks/demo-hello"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Rome"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "stack:demo-hello"
+    commit-message:
+      prefix: "chore(demo-hello)"
+      include: "scope"
