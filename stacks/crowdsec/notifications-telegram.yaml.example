@@ -1,0 +1,39 @@
+---
+# Crowdsec notification plugin: Telegram alert via Bot API
+#
+# This is a TEMPLATE. The real file lives at runtime in
+#   /opt/gmzone/crowdsec/config/notifications/telegram.yaml
+# and is NEVER committed to git — it contains the bot token.
+#
+# Setup on the server (one-shot):
+#   1) ssh into the server
+#   2) sudo mkdir -p /opt/gmzone/crowdsec/config/notifications
+#   3) sudo nano /opt/gmzone/crowdsec/config/notifications/telegram.yaml
+#      → paste this file's content, replace <BOT_TOKEN> and <CHAT_ID>
+#   4) sudo chmod 0600 /opt/gmzone/crowdsec/config/notifications/telegram.yaml
+#   5) sudo chown 1000:1000 ...  (the UID Crowdsec runs as in the container)
+#   6) edit profiles.yaml to attach this notification (see below)
+#   7) docker restart crowdsec
+
+type: http
+name: telegram_alert
+log_level: info
+
+# Format: a JSON body for sendMessage. The {{range . -}} iterates over the
+# alert payload (Crowdsec sends a list, even for single events).
+format: |
+  {
+    "chat_id": "<CHAT_ID>",
+    "parse_mode": "Markdown",
+    "text": "🚨 *gmzone — Crowdsec*\n\n{{range . -}}\n• IP `{{(index .Decisions 0).Value}}` banned for *{{(index .Decisions 0).Duration}}*\n• Scenario: `{{.Scenario}}`\n• Country: {{.Source.Cn}} {{.Source.AsName}}\n{{end}}"
+  }
+
+url: https://api.telegram.org/bot<BOT_TOKEN>/sendMessage
+method: POST
+headers:
+  Content-Type: application/json
+
+# Optional: rate-limit the notifications so a flood of bans doesn't spam
+# you with one Telegram per IP.
+group_wait: 10s
+group_threshold: 5
