@@ -1,0 +1,42 @@
+---
+# Crowdsec profiles — what to do when an alert fires.
+#
+# This is a TEMPLATE. The real file at runtime is
+#   /opt/gmzone/crowdsec/config/profiles.yaml
+# and is NOT auto-managed by docker compose — it persists in the bind-mounted
+# config volume across container restarts.
+#
+# Setup on the server (one-shot):
+#   1) sudo cp /opt/gmzone/crowdsec/config/profiles.yaml /opt/gmzone/crowdsec/config/profiles.yaml.bak
+#      (backup of whatever Crowdsec installed at first run)
+#   2) sudo nano /opt/gmzone/crowdsec/config/profiles.yaml
+#      → replace its content with this file's content
+#   3) docker restart crowdsec
+#
+# Default Crowdsec install ships a similar profile but WITHOUT the
+# `notifications` line. We add `telegram_alert` so each ban triggers a
+# Telegram message via the http plugin defined in
+# notifications/telegram.yaml.
+
+name: default_ip_remediation
+debug: false
+filters:
+  - Alert.Remediation == true && Alert.GetScope() == "Ip"
+decisions:
+  - type: ban
+    duration: 4h
+notifications:
+  - telegram_alert
+on_success: break
+
+---
+name: default_range_remediation
+debug: false
+filters:
+  - Alert.Remediation == true && Alert.GetScope() == "Range"
+decisions:
+  - type: ban
+    duration: 4h
+notifications:
+  - telegram_alert
+on_success: break
