@@ -1,0 +1,96 @@
+# HomeHunter — App Next.js per ricerca casa in Italia (gmzone)
+#
+# Pattern identico agli altri stack:
+#   - 'app' SOLO sulla rete 'proxy' (esposta via NPM) + 'internal' (per parlare col db)
+#   - 'db' SOLO sulla rete 'internal' (mai esposto)
+#   - NO host port mappings (NPM è l'unico ingress)
+#   - hardening: cap_drop:ALL, no-new-privileges, resource limits
+#
+# Source repo: https://github.com/giagione9/gmzone-it-homehunter
+# Image:       ghcr.io/giagione9/gmzone-it-homehunter
+# Public URL:  https://homehunter.gmzone.it (via NPM)
+#
+# Dopo deploy, configurare NPM Proxy Host:
+#   homehunter.gmzone.it  →  http://homehunter:3000
+#   (Force SSL, HTTP/2, Block Common Exploits, HSTS)
+#
+# Variabili in .env (vedi .env.example).
+
+services:
+  app:
+    image: ghcr.io/giagione9/gmzone-it-homehunter:${IMAGE_TAG:-latest}
+    container_name: homehunter
+    restart: unless-stopped
+    networks:
+      - proxy
+      - internal
+    environment:
+      # Database (rete interna, hostname 'db')
+      DATABASE_URL: "postgresql://homehunter:${POSTGRES_PASSWORD}@db:5432/homehunter?schema=public"
+      # NextAuth
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      NEXTAUTH_URL: ${NEXTAUTH_URL}
+      # Email magic link (NextAuth EmailProvider) — SMTP register.it
+      EMAIL_SERVER_HOST: ${EMAIL_SERVER_HOST}
+      EMAIL_SERVER_PORT: ${EMAIL_SERVER_PORT}
+      EMAIL_SERVER_SECURE: ${EMAIL_SERVER_SECURE}
+      EMAIL_SERVER_USER: ${EMAIL_SERVER_USER}
+      EMAIL_SERVER_PASSWORD: ${EMAIL_SERVER_PASSWORD}
+      EMAIL_FROM: ${EMAIL_FROM}
+      # OpenRouteService (per isocrone, prompt 6)
+      ORS_API_KEY: ${ORS_API_KEY}
+      # Feature flags
+      NEXT_PUBLIC_ENABLE_ISOCHRONES: ${NEXT_PUBLIC_ENABLE_ISOCHRONES:-true}
+    depends_on:
+      db:
+        condition: service_healthy
+    tmpfs:
+      - /tmp:size=32M
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 512m
+    cpus: 1.0
+    healthcheck:
+      # Lo stesso check del Dockerfile (HEALTHCHECK) ma esposto anche qui
+      # per compose; richiede che esista /api/health (Prompt 1).
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 45s
+
+  db:
+    image: postgis/postgis:16-3.4-alpine
+    container_name: homehunter-db
+    restart: unless-stopped
+    networks:
+      - internal
+    environment:
+      POSTGRES_USER: homehunter
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: homehunter
+      # Performance/locale safe defaults
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U homehunter -d homehunter"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 512m
+    cpus: 1.0
+
+networks:
+  proxy:
+    external: true
+    name: proxy
+  internal:
+    driver: bridge
